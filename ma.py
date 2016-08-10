@@ -140,7 +140,16 @@ Worksheet.insert_rows = insert_rows
 
 # MAIN COMPONENTS STARTS HERE
 # ----------------------------------------------------------------------------------------------------
-def get_context_form2(po_num=None):
+
+def get_context(po_num=None, period_start=None, period_end=None):
+
+    # PERIOD MUST BE IN dd/mm/yyyy format()
+    period_start = to_date_format(period_start)
+    period_end = to_date_format(period_end)
+    period_string = '{0:%d-%b-%Y} to {1:%d-%b-%Y}'.format(period_start, period_end)
+    delta = period_end - period_start
+    total_required_hour = round(delta.days*48/7)
+
 
     # obj is a single PurchaseOrder model
     q = Q(po_num=po_num)
@@ -148,70 +157,64 @@ def get_context_form2(po_num=None):
         annotate(line=Count('purchaseorderline__pk')).\
         first()
 
+    # queryset for all resources filtered by po_num
+    # use for rs_resource
+    qs_resource = Resource.objects.filter(q).all()
+
+    # queryset for all PO Line filtered by po_num
+    q = Q()
+    for obj in qs_po.purchaseorderline_set.all():
+        q |= Q(po_line__pk = obj.pk)
+    qs_line_details = PurchaseOrderLineDetail.objects.filter(q)
+
+
+    # to get rs_summary
+
+    df_line_details = pd.DataFrame(list(qs_line_details.values('po_position', 'po_os_ref', 'po_level')))
+    df_line_details = df_line_details.groupby(['po_os_ref', 'po_position', 'po_level']).size().reset_index()
+    df_line_details.columns = ['po_os_ref', 'po_position', 'po_level', 'count']
+    df_line_details = df_line_details.pivot_table(index=['po_position','po_os_ref'], columns='po_level', values='count')
+
+    df_resource = pd.DataFrame(list(qs_resource.values('po_position', 'po_os_ref', 'po_level')))
+    df_resource = df_resource.pivot_table(index=['po_position','po_os_ref'], columns='po_level', aggfunc=len, fill_value=0)
+    df_resource *= total_required_hour
+
+    rs_summary = pd.merge(left=df_line_details, right=df_resource, how='outer', left_index=True, right_index=True)
+    rs_summary = rs_summary.reset_index().to_dict('records')
+
     context = {
         'contractor' : qs_po.contractor,
         'po_num': qs_po.po_num,
         'po_line_count': qs_po.line,
-        'period': 'DATE'
+        'rs_resource': qs_resource,      # recordset for individual resource (employee information)
+        'rs_summary': rs_summary,                 # recordset for summary of total numbers
+        'period_string': period_string,
+        'total_required_hour': total_required_hour
     }
-
-    # sub query for line details
-    q = Q()
-    for obj in qs_po.purchaseorderline_set.all():
-        q |= Q(po_line__pk = obj.pk)
-
-    # Counting the total number per position
-    qs_line_details = PurchaseOrderLineDetail.objects.filter(q)
-
-    df = pd.DataFrame(list(qs_line_details.values('po_position', 'po_os_ref', 'po_level')))
-    df = df.groupby(['po_os_ref', 'po_position', 'po_level']).size().reset_index()
-    df.columns = ['po_os_ref', 'po_position', 'po_level', 'count']
-    df = df.pivot_table(index=['po_position','po_os_ref'], columns='po_level', values='count').reset_index()
-
-    context['details'] = df.to_dict('records')
 
     return context
 
-def get_context_form1(po_num=None, period_start=None, period_end=None):
-
-    # PERIOD MUST BE IN dd/mm/yyyy format()
-    period_start = to_date_format(period_start)
-    period_end = to_date_format(period_end)
-
-    # obj is a single PurchaseOrder model
-    q = Q(po_num=po_num)
-    qs_resource = Resource.objects.filter(q).all()
-
-    period_string = '{0:%d-%b-%Y} to {1:%d-%b-%Y}'.format(period_start, period_end)
-
-    delta = period_end - period_start
-    total_required_hour = math.ceil(delta.days*48/7)
-
-    return {'qs_resource': qs_resource,
-            'period_string': period_string,
-            'total_required_hour': total_required_hour}
-
-def single_set_sbh(context_form1=None, context_form2=None, output_file='working.xlsx'):
+def single_set_sbh(context=None, output_file=None):
 
     wb = load_workbook(os.path.join(BASE_DIR, 'forms', 'SBH-FORM.xlsx'))
 
     # WORK SHEET SBH-FORM 1
     #---------------------------------------------------------------------------------------
-    row = 15
+    row = 14
     column = 2
     sr = 1
     ws = wb.get_sheet_by_name('SBH-FORM 1')
 
-    ws.cell('F4').value = context_form2['contractor']
-    ws.cell('K4').value = context_form2['po_num']
-    ws.cell('K6').value = context_form2['po_line_count']
-    ws.cell('F6').value = context_form1['period_string']
+    ws.cell('F4').value = context['contractor']
+    ws.cell('K4').value = context['po_num']
+    ws.cell('K6').value = context['po_line_count']
+    ws.cell('F6').value = context['period_string']
 
-    qs_resource = context_form1['qs_resource']
+    rs_resource = context['rs_resource']
 
-    ws.insert_rows(row, len(qs_resource))
+    ws.insert_rows(row, len(rs_resource)-1)
 
-    for record in qs_resource:
+    for record in rs_resource:
         ws.cell(row=row, column=column).value = sr
         ws.cell(row=row, column=column+1).value = record.po_os_ref
         ws.cell(row=row, column=column+2).value = record.agency_ref_num
@@ -219,7 +222,7 @@ def single_set_sbh(context_form1=None, context_form2=None, output_file='working.
         ws.cell(row=row, column=column+4).value = record.po_position
         ws.cell(row=row, column=column+5).value = record.po_level
         ws.cell(row=row, column=column+6).value = '{0:%d-%b-%Y}'.format(record.date_of_join)
-        ws.cell(row=row, column=column+7).value = context_form1['total_required_hour']
+        ws.cell(row=row, column=column+7).value = context['total_required_hour']
         sr += 1
         row += 1
     #---------------------------------------------------------------------------------------
@@ -233,14 +236,17 @@ def single_set_sbh(context_form1=None, context_form2=None, output_file='working.
 
     ws = wb.get_sheet_by_name('SBH-FORM 2')
 
-    ws.insert_rows(row,len(context_form2['details']))
+    ws.insert_rows(row,len(context['rs_summary'])-1)
 
-    for record in context_form2['details']:
+    for record in context['rs_summary']:
         ws.cell(row=row, column=column).value = record['po_os_ref']
         ws.cell(row=row, column=column+1).value = record.get('po_position')
-        ws.cell(row=row, column=column+2).value = record.get('Level 1', None)
-        ws.cell(row=row, column=column+3).value = record.get('Level 2', None)
-        ws.cell(row=row, column=column+4).value = record.get('Level 3', None)
+        ws.cell(row=row, column=column+2).value = record.get('Level 1_x', None)
+        ws.cell(row=row, column=column+3).value = record.get('Level 2_x', None)
+        ws.cell(row=row, column=column+4).value = record.get('Level 3_x', None)
+        ws.cell(row=row, column=column+14).value = record.get('Level 1_y', None)
+        ws.cell(row=row, column=column+15).value = record.get('Level 2_y', None)
+        ws.cell(row=row, column=column+16).value = record.get('Level 3_y', None)
 
         row += 1
 
@@ -250,8 +256,15 @@ def single_set_sbh(context_form1=None, context_form2=None, output_file='working.
 # MAIN FUNCTION
 # ----------------------------------------------------------------------------------------------------
 
+
 def make_forms(po_num=None, period_start=None, period_end=None, output_file=None):
 
-    context1 = get_context_form1(po_num, period_start, period_end)
-    context2 = get_context_form2(po_num)
-    single_set_sbh(context1, context2)
+    context = get_context(po_num, period_start, period_end)
+    single_set_sbh(context, output_file)
+
+def test():
+    for i in PurchaseOrder.objects.filter(po_status='VALID').all():
+        try:
+            make_forms(i.po_num, "20/06/2016", "19/07/2016", '{}.xlsx'.format(i.po_num))
+        except:
+            print(i.po_num)
