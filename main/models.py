@@ -104,3 +104,11 @@ class Resource(models.Model):
     opex_value = models.DecimalField(max_digits=20, decimal_places=2, default=Decimal('0.00'))
     revenue_value = models.DecimalField(max_digits=20, decimal_places=2, default=Decimal('0.00'))
     contractor = models.CharField(blank=True, max_length=255)
+
+class UnitPrice(models.Model):
+
+    contractor = models.CharField(blank=True, max_length=255)
+    po_position = models.CharField(blank=True, max_length=255)
+    po_level = models.CharField(blank=True, max_length=255)
+    amount = models.DecimalField(max_digits=20, decimal_places=2, default=Decimal('0.00'))
+    percent = models.IntegerField(default=0)

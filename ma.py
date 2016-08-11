@@ -16,9 +16,10 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "project.settings")
 
 application = get_wsgi_application()
 
-from main.models import PurchaseOrder, PurchaseOrderLineDetail, Resource
+from main.models import PurchaseOrder, PurchaseOrderLineDetail, Resource, UnitPrice
 from dump import to_date_format
 import pandas as pd
+import  numpy as np
 from openpyxl import *
 from openpyxl.cell import Cell
 from openpyxl.utils import get_column_letter
@@ -141,16 +142,20 @@ Worksheet.insert_rows = insert_rows
 # MAIN COMPONENTS STARTS HERE
 # ----------------------------------------------------------------------------------------------------
 
+def get_required_hour(period_start=None, period_end=None):
+
+    delta = period_end - period_start
+    return round(delta.days*48/7)
+
 def get_context(po_num=None, period_start=None, period_end=None):
 
     # PERIOD MUST BE IN dd/mm/yyyy format()
-    period_start = to_date_format(period_start)
-    period_end = to_date_format(period_end)
-    period_string = '{0:%d-%b-%Y} to {1:%d-%b-%Y}'.format(period_start, period_end)
-    delta = period_end - period_start
-    total_required_hour = round(delta.days*48/7)
+    period_start = to_date_format(period_start) #if isinstance(period_start, str) else period_start
+    period_end = to_date_format(period_end) #if isinstance(period_start, str) else period_end
+    period_string = '{0:%d-%b-%Y} to {1:%d-%b-%Y}'.format(period_start,
+                                                          period_end)
 
-
+    required_hour = get_required_hour(period_start, period_end)
     # obj is a single PurchaseOrder model
     q = Q(po_num=po_num)
     qs_po = PurchaseOrder.objects.filter(q).\
@@ -159,7 +164,12 @@ def get_context(po_num=None, period_start=None, period_end=None):
 
     # queryset for all resources filtered by po_num
     # use for rs_resource
-    qs_resource = Resource.objects.filter(q).all()
+    qs_resource = Resource.objects.filter(q)
+    df_resource = pd.DataFrame(list(qs_resource.values()))
+    df_resource['required_hour'] = required_hour #np.where(df_resource['date_of_join'] > period_start, "NOT FULL", "FULL") #get_required_hour(period_start, period_end)
+    # required_hour if period_start > df_resource['date_of_join'] \
+    #     else get_required_hour(period_start=df_resource['date_of_join'], period_end=period_end)
+    rs_resource = df_resource.to_dict('records')
 
     # queryset for all PO Line filtered by po_num
     q = Q()
@@ -175,21 +185,29 @@ def get_context(po_num=None, period_start=None, period_end=None):
     df_line_details.columns = ['po_os_ref', 'po_position', 'po_level', 'count']
     df_line_details = df_line_details.pivot_table(index=['po_position','po_os_ref'], columns='po_level', values='count')
 
-    df_resource = pd.DataFrame(list(qs_resource.values('po_position', 'po_os_ref', 'po_level')))
-    df_resource = df_resource.pivot_table(index=['po_position','po_os_ref'], columns='po_level', aggfunc=len, fill_value=0)
-    df_resource *= total_required_hour
+    # df_resource = pd.DataFrame(list(qs_resource.values('po_position', 'po_os_ref', 'po_level')))
+    # df_resource = df_resource.pivot_table(index=['po_position','po_os_ref'], columns='po_level', aggfunc=len, fill_value=0)
+    # df_resource *= total_required_hour
+    # rs_summary = pd.merge(left=df_line_details, right=df_resource, how='outer', left_index=True, right_index=True)
 
-    rs_summary = pd.merge(left=df_line_details, right=df_resource, how='outer', left_index=True, right_index=True)
-    rs_summary = rs_summary.reset_index().to_dict('records')
+    rs_summary = df_line_details.reset_index().to_dict('records')
+
+    # get unit price
+    q = Q(contractor=qs_po.contractor)
+    qs_unit_price = UnitPrice.objects.filter(q)
+    df_unit_price = pd.DataFrame(list(qs_unit_price.values()))
+    df_unit_price = df_unit_price.pivot(index='po_position', columns='po_level', values='amount').reset_index()
+    rs_unit_price = df_unit_price.to_dict('records')
 
     context = {
         'contractor' : qs_po.contractor,
         'po_num': qs_po.po_num,
         'po_line_count': qs_po.line,
-        'rs_resource': qs_resource,      # recordset for individual resource (employee information)
+        'rs_resource': rs_resource,      # recordset for individual resource (employee information)
         'rs_summary': rs_summary,                 # recordset for summary of total numbers
+        'rs_unit_price': rs_unit_price,                 # recordset for summary of unit price
         'period_string': period_string,
-        'total_required_hour': total_required_hour
+        'total_required_hour': required_hour
     }
 
     return context
@@ -200,7 +218,7 @@ def single_set_sbh(context=None, output_file=None):
 
     # WORK SHEET SBH-FORM 1
     #---------------------------------------------------------------------------------------
-    row = 14
+    row = 15
     column = 2
     sr = 1
     ws = wb.get_sheet_by_name('SBH-FORM 1')
@@ -216,20 +234,20 @@ def single_set_sbh(context=None, output_file=None):
 
     for record in rs_resource:
         ws.cell(row=row, column=column).value = sr
-        ws.cell(row=row, column=column+1).value = record.po_os_ref
-        ws.cell(row=row, column=column+2).value = record.agency_ref_num
-        ws.cell(row=row, column=column+3).value = record.res_full_name
-        ws.cell(row=row, column=column+4).value = record.po_position
-        ws.cell(row=row, column=column+5).value = record.po_level
-        ws.cell(row=row, column=column+6).value = '{0:%d-%b-%Y}'.format(record.date_of_join)
-        ws.cell(row=row, column=column+7).value = context['total_required_hour']
+        ws.cell(row=row, column=column+1).value = record['po_os_ref']
+        ws.cell(row=row, column=column+2).value = record['agency_ref_num']
+        ws.cell(row=row, column=column+3).value = record['res_full_name']
+        ws.cell(row=row, column=column+4).value = record['po_position']
+        ws.cell(row=row, column=column+5).value = record['po_level']
+        ws.cell(row=row, column=column+6).value = '{0:%d-%b-%Y}'.format(record['date_of_join'])
+        ws.cell(row=row, column=column+7).value = record['required_hour']
         sr += 1
         row += 1
     #---------------------------------------------------------------------------------------
     # END SBH FORM 1
 
 
-    # WORK SHEET SBH-FORM 1
+    # WORK SHEET SBH-FORM 2
     #---------------------------------------------------------------------------------------
     row = 16
     column = 2 # B
@@ -237,18 +255,39 @@ def single_set_sbh(context=None, output_file=None):
     ws = wb.get_sheet_by_name('SBH-FORM 2')
 
     ws.insert_rows(row,len(context['rs_summary'])-1)
+    ws.cell('P13').value = context['total_required_hour']
 
     for record in context['rs_summary']:
         ws.cell(row=row, column=column).value = record['po_os_ref']
         ws.cell(row=row, column=column+1).value = record.get('po_position')
-        ws.cell(row=row, column=column+2).value = record.get('Level 1_x', None)
-        ws.cell(row=row, column=column+3).value = record.get('Level 2_x', None)
-        ws.cell(row=row, column=column+4).value = record.get('Level 3_x', None)
-        ws.cell(row=row, column=column+14).value = record.get('Level 1_y', None)
-        ws.cell(row=row, column=column+15).value = record.get('Level 2_y', None)
-        ws.cell(row=row, column=column+16).value = record.get('Level 3_y', None)
+        ws.cell(row=row, column=column+2).value = record.get('Level 1', None)
+        ws.cell(row=row, column=column+3).value = record.get('Level 2', None)
+        ws.cell(row=row, column=column+4).value = record.get('Level 3', None)
+        # ws.cell(row=row, column=column+14).value = record.get('Level 1_y', None)
+        # ws.cell(row=row, column=column+15).value = record.get('Level 2_y', None)
+        # ws.cell(row=row, column=column+16).value = record.get('Level 3_y', None)
 
         row += 1
+    #---------------------------------------------------------------------------------------
+    # END SBH FORM 2
+
+    # WORK SHEET UNIT PRICE
+    #---------------------------------------------------------------------------------------
+    row = 1
+    column = 1 # B
+
+    ws = wb.get_sheet_by_name('UNIT PRICE')
+
+    for record in context['rs_unit_price']:
+        ws.cell(row=row, column=column).value = record['po_position']
+        ws.cell(row=row, column=column+1).value = record.get('Level 1', None)
+        ws.cell(row=row, column=column+2).value = record.get('Level 2', None)
+        ws.cell(row=row, column=column+3).value = record.get('Level 3', None)
+        ws.cell(row=row, column=column+4).value = record.get('Level 4', None)
+
+        row += 1
+    #---------------------------------------------------------------------------------------
+    # END UNIT PRICE
 
     wb.save(os.path.join(BASE_DIR, 'output', output_file))
 

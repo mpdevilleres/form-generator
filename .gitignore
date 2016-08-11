@@ -1,5 +1,4 @@
 *.pyc
-dump/
 *.sqlite3
 *.csv
 *.csv.bak
