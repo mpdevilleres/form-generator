@@ -24,6 +24,7 @@ class PurchaseOrder(models.Model):
     def __str__(self):
         return self.po_num
 
+
 class PurchaseOrderLine(models.Model):
 
     po_num = models.ForeignKey(PurchaseOrder, null=True, on_delete=models.CASCADE)
@@ -45,6 +46,7 @@ class PurchaseOrderLine(models.Model):
 
     def __str__(self):
         return self.line_num
+
 
 class PurchaseOrderLineDetail(models.Model):
 
@@ -72,6 +74,7 @@ class PurchaseOrderLineDetail(models.Model):
 
     def __str__(self):
         return self.po_os_ref
+
 
 class Resource(models.Model):
 
@@ -112,3 +115,15 @@ class UnitPrice(models.Model):
     po_level = models.CharField(blank=True, max_length=255)
     amount = models.DecimalField(max_digits=20, decimal_places=2, default=Decimal('0.00'))
     percent = models.IntegerField(default=0)
+
+
+class Invoice(models.Model):
+
+    resource = models.ForeignKey(Resource, null=True, on_delete=models.CASCADE)
+    po_line_detail = models.ForeignKey(PurchaseOrderLineDetail, null=True, on_delete=models.CASCADE)
+
+    invoice_date = models.DateField(blank=True, null=True)
+    invoice_hour = models.DecimalField(max_digits=20, decimal_places=2, default=Decimal('0.00'))
+    invoice_claim = models.DecimalField(max_digits=20, decimal_places=2, default=Decimal('0.00'))
+    invoice_cert_amount = models.DecimalField(max_digits=20, decimal_places=2, default=Decimal('0.00'))
+    remarks = models.TextField(blank=True)
