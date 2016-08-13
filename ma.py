@@ -4,7 +4,7 @@ import copy
 import re
 
 import os, math
-
+import datetime
 
 from django.db.models import Count, Q
 from django.core.wsgi import get_wsgi_application
@@ -16,7 +16,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "project.settings")
 
 application = get_wsgi_application()
 
-from main.models import PurchaseOrder, PurchaseOrderLineDetail, Resource, UnitPrice
+from main.models import PurchaseOrder, PurchaseOrderLineDetail, Resource, UnitPrice, Invoice
 from dump import to_date_format
 import pandas as pd
 import  numpy as np
@@ -144,8 +144,19 @@ Worksheet.insert_rows = insert_rows
 
 def get_required_hour(period_start=None, period_end=None):
 
+    period_start = period_start.date() if isinstance(period_start, datetime.datetime) else period_start
+    period_end = period_end.date() if isinstance(period_end, datetime.datetime) else period_end
+
     delta = period_end - period_start
+
     return round(delta.days*48/7)
+
+def get_individual_required_hour(date_of_join=None,period_start=None, period_end=None):
+    #date of date is latest
+    if date_of_join > period_start:
+        return get_required_hour(date_of_join, period_end)
+
+    return get_required_hour(period_start, period_end)
 
 def get_context(po_num=None, period_start=None, period_end=None):
 
@@ -165,11 +176,34 @@ def get_context(po_num=None, period_start=None, period_end=None):
     # queryset for all resources filtered by po_num
     # use for rs_resource
     qs_resource = Resource.objects.filter(q)
-    df_resource = pd.DataFrame(list(qs_resource.values()))
-    df_resource['required_hour'] = required_hour #np.where(df_resource['date_of_join'] > period_start, "NOT FULL", "FULL") #get_required_hour(period_start, period_end)
-    # required_hour if period_start > df_resource['date_of_join'] \
-    #     else get_required_hour(period_start=df_resource['date_of_join'], period_end=period_end)
-    rs_resource = df_resource.to_dict('records')
+    q = Q()
+    for obj in qs_resource.all():
+        q |= Q(resource_pk = obj.pk)
+
+    qs_invoice = Invoice.objects.order_by('-invoice_date').filter(q)
+
+    df_resource = pd.DataFrame(list(qs_resource.values('id', 'po_os_ref', 'agency_ref_num', 'res_full_name',
+                                                       'po_position', 'po_level', 'date_of_join'
+                                                       )
+                                    )
+                               )
+    df_resource['period_start'] = period_start.date()
+    df_resource['period_end'] = period_end.date()
+    df_resource['required_hour'] = required_hour
+    # df_resource['required_hour'] = df_resource.apply(lambda row: get_individual_required_hour(row['date_of_join'],
+    #                                                                                           row['period_start'],
+    #                                                                                           row['period_end']),
+    #                                                  axis=1)
+
+    df_invoice = pd.DataFrame(list(qs_invoice.values('id', 'resource_id', 'invoice_hour', 'invoice_claim',
+                                                       'remarks'
+                                                       )
+                                    )
+                               )
+    df_invoice = df_invoice.groupby('resource_id').first().reset_index()
+
+    rs_resource = pd.merge(left=df_resource, right=df_invoice, how='left', left_on='id', right_on='resource_id')
+    rs_resource = rs_resource.to_dict('records')
 
     # queryset for all PO Line filtered by po_num
     q = Q()
@@ -241,6 +275,7 @@ def single_set_sbh(context=None, output_file=None):
         ws.cell(row=row, column=column+5).value = record['po_level']
         ws.cell(row=row, column=column+6).value = '{0:%d-%b-%Y}'.format(record['date_of_join'])
         ws.cell(row=row, column=column+7).value = record['required_hour']
+        ws.cell(row=row, column=column+7).value = record['invoice_hour']
         sr += 1
         row += 1
     #---------------------------------------------------------------------------------------
@@ -303,7 +338,7 @@ def make_forms(po_num=None, period_start=None, period_end=None, output_file=None
 
 def test():
     for i in PurchaseOrder.objects.filter(po_status='VALID').all():
-        try:
-            make_forms(i.po_num, "20/06/2016", "19/07/2016", '{}.xlsx'.format(i.po_num))
-        except:
+       try:
+            make_forms(i.po_num, "20/06/2016", "20/07/2016", '{}.xlsx'.format(i.po_num))
+       except:
             print(i.po_num)

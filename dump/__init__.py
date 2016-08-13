@@ -7,7 +7,7 @@ from decimal import Decimal, InvalidOperation
 
 import subprocess
 
-from main.models import PurchaseOrder, PurchaseOrderLine, PurchaseOrderLineDetail, Resource, UnitPrice
+from main.models import PurchaseOrder, PurchaseOrderLine, PurchaseOrderLineDetail, Resource, UnitPrice, Invoice
 
 dumpdir = os.path.dirname(os.path.realpath(__file__))
 
@@ -217,12 +217,38 @@ def dump_unit_price(file='UnitPrice.csv'):
             else:
                 unit_price = UnitPrice()
 
+                unit_price.pk = row["id"]
                 unit_price.po_level = row['po_level']
                 unit_price.po_position = row['po_position']
                 unit_price.contractor = row['contractor']
                 unit_price.amount = to_dec(row['amount'])
                 unit_price.percent = row['percent']
                 unit_price.save()
+
+def dump_invoice(file='TechInvoiceMgmt.csv'):
+    csvpath = os.path.join(dumpdir, file)
+#    clean_csv(csvpath)
+    with open(csvpath) as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            invoice = Invoice.objects.filter(id=row["InvID"]).first()
+            if invoice:
+                print('Invoice ID# %s Exist' % row["InvID"])
+                continue
+            else:
+                invoice = Invoice()
+
+                invoice.pk = row['InvID']
+                invoice.resource_id = row['ResID']
+                invoice.po_line_detail_id = row['PODetID']
+                invoice.invoice_date = to_date_format(row['InvMonth'])
+                invoice.invoice_hour = row['InvMonthHrs']
+                invoice.invoice_claim = row['InvClaimHrs']
+                invoice.invoice_cert_amount = Decimal(row['InvCertAmt'])
+                invoice.remarks = row['Remarks']
+                invoice.save()
+
+
 def start():
     dump_purchase_order()
     dump_purchase_order_line()
