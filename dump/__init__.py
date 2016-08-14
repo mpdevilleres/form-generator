@@ -253,3 +253,6 @@ def start():
     dump_purchase_order()
     dump_purchase_order_line()
     dump_purchase_order_line_details()
+    dump_resources()
+    dump_unit_price()
+    dump_invoice()
