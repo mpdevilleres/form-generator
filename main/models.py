@@ -67,6 +67,7 @@ class PurchaseOrderLineDetail(models.Model):
     capex_percent = models.IntegerField(default=0)
     opex_percent = models.IntegerField(default=0)
     revenue_percent = models.IntegerField(default=0)
+    rate_diff_percent = models.DecimalField(max_digits=20, decimal_places=2, default=Decimal('0.00'))
 
     @property
     def rate(self):

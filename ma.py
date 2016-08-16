@@ -315,7 +315,8 @@ def single_set_sbh(context=None, output_file=None, form=None):
         ws.cell(row=row, column=column + 5).value = record['po_level']
         ws.cell(row=row, column=column + 6).value = '{0:%d-%b-%Y}'.format(record['date_of_join'])
         ws.cell(row=row, column=column + 7).value = record['required_hour']
-        ws.cell(row=row, column=column + 8).value = record['invoice_hour']
+        ws.cell(row=row, column=column + 8).value = record['invoice_claim']
+        ws.cell(row=row, column=column + 10).value = record['remarks']
         sr += 1
         row += 1
     # ---------------------------------------------------------------------------------------
@@ -389,17 +390,22 @@ def make_forms_per_contractor(contractor=None, period_start=None, period_end=Non
         except Exception as e:
             print(i.po_num, e)
 
+if __name__ == '__main__':
 
-# make_forms_per_po('1072501-0', "20/06/2016", "19/07/2016", '20/06/2016', '05-07-2016')
-#
-# # make_forms_per_po('1072521-0', "20/06/2016", "20/07/2016", '20/06/2016', '05/07/2016')
-make_forms_per_po('1072517-0', "20/02/2016", "19/03/2016")
-make_forms_per_po('1072517-0', "20/03/2016", "19/04/2016")
-make_forms_per_po('1072517-0', "20/04/2016", "19/05/2016")
-make_forms_per_po('1072517-0', "20/05/2016", "19/06/2016")
-make_forms_per_po('1072517-0', "20/06/2016", "19/07/2016")
-make_forms_per_po('1072517-0', "20/07/2016", "19/08/2016")
-# period_start = to_date_format("20/06/2016")
-# period_end = to_date_format("20/07/2016")
-# ramadan_start = to_date_format('20/06/2016')
-# ramadan_end = to_date_format('05/07/2016')
+    #make_forms_per_contractor('REACH',ramadan_start=None, ramadan_end=None,)
+    #make_forms_per_po('1072501-0', "20/06/2016", "19/07/2016", '20/06/2016', '05-07-2016')
+    #
+    make_forms_per_po('1069291-0', "20/12/2015", "20/01/2016")
+    # make_forms_per_po('1072503-0', "20/05/2016", "20/06/2016", '20/06/2016', '05/07/2016')
+    # make_forms_per_po('1072503-0', "20/06/2016", "20/07/2016", '20/06/2016', '05/07/2016')
+    # make_forms_per_po('1072503-0', "20/07/2016", "20/08/2016", '20/06/2016', '05/07/2016')
+    # make_forms_per_po('1072517-0', "20/02/2016", "19/03/2016")
+    # make_forms_per_po('1072517-0', "20/03/2016", "19/04/2016")
+    # make_forms_per_po('1072517-0', "20/04/2016", "19/05/2016")
+    # make_forms_per_po('1072517-0', "20/05/2016", "19/06/2016")
+    # make_forms_per_po('1072517-0', "20/06/2016", "19/07/2016")
+    # make_forms_per_po('1072517-0', "20/07/2016", "19/08/2016")
+    # period_start = to_date_format("20/06/2016")
+    # period_end = to_date_format("20/07/2016")
+    # ramadan_start = to_date_format('20/06/2016')
+    # ramadan_end = to_date_format('05/07/2016')
