@@ -69,11 +69,10 @@ def dump_purchase_order(file='TechPO.csv'):
             else:
                 po = PurchaseOrder()
 
-                po.po_num = row["PONum"]
-
                 # Need Date Fixing
-                # po.po_date = to_date_format(row["PODate"])
                 po.pk = row["POID"]
+                po.po_num = row["PONum"]
+#                po.po_date = to_date_format(row["PODate"])
                 po.po_value = to_dec(row["POValue"])
                 po.contractor = row["Contractor"]
                 po.budget = row["Budget"]
@@ -143,9 +142,7 @@ def dump_purchase_order_line_details(file='TechPOLineDetail.csv'):
                     continue
                 else:
                     po_line_detail = PurchaseOrderLineDetail()
-
                     po_line_detail.po_line = po_line.first()
-
                     po_line_detail.pk = row["PODetID"]
                     po_line_detail.po_os_ref = row["POOSRef"]
                     po_line_detail.po_position = row["POPosition"]
@@ -163,7 +160,7 @@ def dump_purchase_order_line_details(file='TechPOLineDetail.csv'):
                     po_line_detail.capex_percent = row["CPX%Age"]
                     po_line_detail.opex_percent = row["OPX%Age"]
                     po_line_detail.revenue_percent = row["REV%Age"]
-                    po_line_detail.rate_diff_percent = to_dec(row['PercentDiffRate'])
+                    po_line_detail.rate_diff_percent = to_dec(row['PORate%Incr'])
                     po_line_detail.save()
 
 
@@ -180,23 +177,25 @@ def dump_resources(file='RPT01_ Monthly Accruals - Mobillized.csv'):
             else:
                 resource = Resource()
 
-#                resource.po_id = row["ResID"]
-                resource.po_line_detail_id = row["ResID"]
+                resource.po_id = row["POID"]
+                resource.po_line_detail_id = row["PODetID"]
 
                 resource.pk = row["ResID"]
                 resource.res_type = row['ResType']
                 resource.res_type_class = row['ResTypeClass']
                 resource.agency_ref_num = row['AgencyRefNum']
-                resource.po_os_ref = row['POOSRef']
                 resource.res_emp_num = row['ResEmpNum']
                 resource.res_full_name = row['ResFullName']
                 resource.date_of_join = to_date_format(row['DoJ'])
+                resource.res_job_title = row['ResJobTitle']
+                resource.grade_level = row['GradeLevel']
                 resource.po_position = row['POPosition']
                 resource.po_level = row['POLevel']
                 resource.division = row['Division']
                 resource.section = row['Section']
                 resource.manager = row['Manager']
                 resource.rate = row['Rate']
+                resource.po_rate_percent_increase = to_dec(row['PORate%Incr'])
                 resource.capex_percent = row['CPXPercent']
                 resource.capex_rate = row['CAPEXRate']
                 resource.opex_percent = row['OPXPercent']
@@ -210,6 +209,7 @@ def dump_resources(file='RPT01_ Monthly Accruals - Mobillized.csv'):
                 resource.opex_value = row['OPXValue']
                 resource.revenue_value = row['REVValue']
                 resource.contractor = row['Contractor']
+                resource.po_os_ref = row['POOSRef']
                 resource.save()
 
 
@@ -261,11 +261,17 @@ def dump_invoice(file='TechInvoiceMgmt.csv'):
 
 def start():
     dump_purchase_order()
+    print('FINISHED PURCHASE ORDER')
     dump_purchase_order_line()
+    print('FINISHED PURCHASE ORDER LINE')
     dump_purchase_order_line_details()
+    print('FINISHED PURCHASE ORDER LINE DETAIL')
     dump_resources()
+    print('FINISHED RESOURCES')
     dump_unit_price()
+    print('FINISHED UNIT PRICE')
     dump_invoice()
+    print('FINISHED INVOICE')
 
 if __name__ == '__main__':
     start()

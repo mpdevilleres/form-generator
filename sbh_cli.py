@@ -1,5 +1,6 @@
 import click
-
+from utils import *
+from main.models import PurchaseOrder, Resource
 from sbh_creator import SBH
 
 
@@ -58,6 +59,18 @@ def get_cycle():
     return cycles[row_num - 1]
 
 
+def get_division(po_num):
+    qs_po = PurchaseOrder.objects.filter(po_num=po_num).first()
+    qs_resource = Resource.objects.filter(po_id=qs_po.id)
+    divisions = list(qs_resource.values_list('division', flat=True).distinct())
+    click.echo("Please select a DIVISION:")
+    for row in divisions:
+        click.echo("  {}: {}".format(divisions.index(row), row))
+
+    row_num = click.prompt("Enter your choice: ", type=int)
+
+    return divisions[row_num]
+
 @click.command()
 def cli():
     sbh = SBH()
@@ -68,30 +81,41 @@ def cli():
     click.echo("#----------------------------------------#")
     click.echo("#****************************************#")
     click.echo("")
-    cycle = get_cycle()
-    click.echo("Do you want to generate for,")
-    click.echo("  1. All")
-    click.echo("  2. Per PO NUMBER")
-    click.echo("  3. Per Contractor")
-    generate_category = click.prompt("Enter your choice: ", type=int, default=1)
+    while True:
+        cycle = get_cycle()
+        click.echo("Do you want to generate for,")
+        click.echo("  1. ALL")
+        click.echo("  2. Per PO NUMBER")
+        click.echo("  3. Per CONTRACTOR")
+        click.echo("  4. Per DIVISION")
+        generate_category = click.prompt("Enter your choice: ", type=int, default=1)
 
-    if generate_category == 2:
-        po_num = click.prompt("Enter your PO NUMBER: ", type=str)
-        click.echo("Generating for {}".format(po_num))
-        sbh.make_sbh_per_po(po_num, cycle[1], cycle[2])
-        click.echo("DONE")
+        if generate_category == 2:
+            po_num = click.prompt("Enter your PO NUMBER: ", type=str)
+            click.echo("Generating for {}".format(po_num))
+            sbh.make_sbh_per_po(po_num, cycle[1], cycle[2], cycle[3], cycle[4])
+            click.echo("DONE")
 
-    elif generate_category == 3:
-        contractor = get_contractor()
-        click.echo("Generating for {}".format(contractor[1]))
-        sbh.make_sbh_per_contractor(contractor[1], cycle[1], cycle[2])
-        click.echo("DONE")
+        elif generate_category == 3:
+            contractor = get_contractor()
+            click.echo("Generating for {}".format(contractor[1]))
+            sbh.make_sbh_per_contractor(contractor[1], cycle[1], cycle[2], cycle[3], cycle[4])
+            click.echo("DONE")
 
-    else:
-        contractor = 'all'
-        click.echo("Generating for {}".format(contractor))
-        sbh.make_sbh_per_contractor(contractor, cycle[1], cycle[2])
-        click.echo("DONE")
+        elif generate_category == 4:
+            po_num = click.prompt("Enter your PO NUMBER: ", type=str)
+            division = get_division(po_num)
+            click.echo("Generating for {}".format(po_num))
+            sbh.make_sbh_per_division(po_num, division, cycle[1], cycle[2], cycle[3], cycle[4])
+            click.echo("DONE")
+
+        else:
+            contractor = 'all'
+            click.echo("Generating for {}".format(contractor))
+            sbh.make_sbh_per_contractor(contractor, cycle[1], cycle[2])
+            click.echo("DONE")
+
+        click.confirm('Do you want to continue?', abort=True)
 
 
 if __name__ == '__main__':

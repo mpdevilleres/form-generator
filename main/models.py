@@ -1,10 +1,10 @@
 from decimal import Decimal
 from django.db import models
 
+
 # Create your models here.
 
 class PurchaseOrder(models.Model):
-
     po_num = models.CharField(blank=True, max_length=255)
     po_date = models.DecimalField(max_digits=20, decimal_places=2, default=Decimal('0.00'))
     po_value = models.DecimalField(max_digits=20, decimal_places=2, default=Decimal('0.00'))
@@ -26,7 +26,6 @@ class PurchaseOrder(models.Model):
 
 
 class PurchaseOrderLine(models.Model):
-
     po_num = models.ForeignKey(PurchaseOrder, null=True, on_delete=models.CASCADE)
 
     line_num = models.CharField(blank=True, max_length=255)
@@ -49,7 +48,6 @@ class PurchaseOrderLine(models.Model):
 
 
 class PurchaseOrderLineDetail(models.Model):
-
     po_line = models.ForeignKey(PurchaseOrderLine, null=True, on_delete=models.CASCADE)
     po_os_ref = models.CharField(blank=True, max_length=255)
     po_position = models.CharField(blank=True, max_length=255)
@@ -78,23 +76,24 @@ class PurchaseOrderLineDetail(models.Model):
 
 
 class Resource(models.Model):
-
     po_line_detail = models.ForeignKey(PurchaseOrderLineDetail, null=True, on_delete=models.CASCADE)
     po = models.ForeignKey(PurchaseOrder, null=True, on_delete=models.CASCADE)
 
     res_type = models.CharField(blank=True, max_length=255)
     res_type_class = models.CharField(blank=True, max_length=255)
     agency_ref_num = models.CharField(blank=True, max_length=255)
-    po_os_ref = models.CharField(blank=True, max_length=255)
     res_emp_num = models.CharField(blank=True, max_length=255)
     res_full_name = models.CharField(blank=True, max_length=255)
     date_of_join = models.DateField(blank=True, null=True)
+    res_job_title = models.CharField(blank=True, max_length=255)
+    grade_level = models.CharField(blank=True, max_length=255)
     po_position = models.CharField(blank=True, max_length=255)
     po_level = models.CharField(blank=True, max_length=255)
     division = models.CharField(blank=True, max_length=255)
     section = models.CharField(blank=True, max_length=255)
     manager = models.CharField(blank=True, max_length=255)
     rate = models.DecimalField(max_digits=20, decimal_places=2, default=Decimal('0.00'))
+    po_rate_percent_increase = models.DecimalField(max_digits=20, decimal_places=2, default=Decimal('0.00'))
     capex_percent = models.IntegerField(default=0)
     capex_rate = models.DecimalField(max_digits=20, decimal_places=2, default=Decimal('0.00'))
     opex_percent = models.IntegerField(default=0)
@@ -108,9 +107,9 @@ class Resource(models.Model):
     opex_value = models.DecimalField(max_digits=20, decimal_places=2, default=Decimal('0.00'))
     revenue_value = models.DecimalField(max_digits=20, decimal_places=2, default=Decimal('0.00'))
     contractor = models.CharField(blank=True, max_length=255)
+    po_os_ref = models.CharField(blank=True, max_length=255)
 
 class UnitPrice(models.Model):
-
     contractor = models.CharField(blank=True, max_length=255)
     po_position = models.CharField(blank=True, max_length=255)
     po_level = models.CharField(blank=True, max_length=255)
@@ -119,7 +118,6 @@ class UnitPrice(models.Model):
 
 
 class Invoice(models.Model):
-
     resource = models.ForeignKey(Resource, null=True, on_delete=models.CASCADE)
     po_line_detail = models.ForeignKey(PurchaseOrderLineDetail, null=True, on_delete=models.CASCADE)
 

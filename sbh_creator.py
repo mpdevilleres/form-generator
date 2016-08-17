@@ -81,11 +81,6 @@ class SBH(object):
                                                self.ramadan_start, self.ramadan_end)
 
     def set_initial_queryset(self):
-    # Sort by Director > Designaton, Level Form 1
-    # Director Column to Last
-
-    # Reference, Position, %
-
         q = Q(po_num=self.po_num)
         self.qs_po = PurchaseOrder.objects.filter(q). \
             annotate(line=Count('purchaseorderline__pk')). \
@@ -145,6 +140,9 @@ class SBH(object):
             df_invoice = df_invoice.groupby('resource_id').first().reset_index()
 
         rs_resource = pd.merge(left=df_resource, right=df_invoice, how='left', left_on='id', right_on='resource_id')
+        rs_resource.sort_values(by=['po_line_detail__director_name', 'po_position', 'po_line_detail__rate_diff_percent'],
+                                ascending=[True, True, True],
+                                inplace=True)
         rs_resource = rs_resource.fillna(0.0).to_dict('records')
 
         # to get rs_summary
@@ -157,8 +155,11 @@ class SBH(object):
         df_line_details = df_line_details.pivot_table(index=['po_position', 'po_os_ref', 'rate_diff_percent'],
                                                       columns='po_level',
                                                       values='count')
-
-        rs_summary = df_line_details.reset_index().fillna(0.0).to_dict('records')
+        rs_summary = df_line_details.reset_index()
+        rs_summary.sort_values(by=['po_os_ref', 'po_position', 'rate_diff_percent'],
+                               ascending=[True, True, True],
+                               inplace=True)
+        rs_summary = rs_summary.fillna(0.0).to_dict('records')
 
         df_unit_price = pd.DataFrame(list(self.qs_unit_price.values()))
         df_unit_price = df_unit_price.pivot(index='po_position', columns='po_level', values='amount').reset_index()
@@ -218,7 +219,6 @@ class SBH(object):
             ws.cell(row=row, column=column + 11).protection = Protection(locked=False)
             ws.cell(row=row, column=column + 12).protection = Protection(locked=False)
             ws.cell(row=row, column=column + 13).protection = Protection(locked=False)
-
 
             sr += 1
             row += 1
