@@ -1,7 +1,5 @@
 import click
 
-from ma import *
-from main.models import PurchaseOrder
 from sbh_creator import SBH
 
 
@@ -90,14 +88,9 @@ def cli():
         click.echo("DONE")
 
     else:
-        click.echo("Generating for ALL")
-        qs = PurchaseOrder.objects.all()
-        for i in qs:
-            try:
-                sbh.make_sbh_per_po(i.po_num, cycle[1], cycle[2])
-            except Exception as e:
-                print(i.po_num, e)
-        sbh.make_sbh_per_po()
+        contractor = 'all'
+        click.echo("Generating for {}".format(contractor))
+        sbh.make_sbh_per_contractor(contractor, cycle[1], cycle[2])
         click.echo("DONE")
 
 

@@ -268,6 +268,4 @@ def start():
     dump_invoice()
 
 if __name__ == '__main__':
-    from ma import *
-    PurchaseOrderLineDetail.objects.delete()
-    dump_purchase_order_line_details()
+    start()
