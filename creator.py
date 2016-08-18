@@ -140,9 +140,10 @@ class SBH(object):
             df_invoice = df_invoice.groupby('resource_id').first().reset_index()
 
         rs_resource = pd.merge(left=df_resource, right=df_invoice, how='left', left_on='id', right_on='resource_id')
-        rs_resource.sort_values(by=['po_line_detail__director_name', 'po_position', 'po_line_detail__rate_diff_percent'],
-                                ascending=[True, True, True],
-                                inplace=True)
+        rs_resource.sort_values(
+            by=['po_line_detail__director_name', 'po_position', 'po_line_detail__rate_diff_percent'],
+            ascending=[True, True, True],
+            inplace=True)
         rs_resource = rs_resource.fillna(0.0).to_dict('records')
 
         # to get rs_summary
@@ -325,12 +326,131 @@ class SBH(object):
         # except Exception as e:
         #     print('Failed: ', po_num, ' due to missing {}'.format(str(e)))
 
+
+class DATASHEET(SBH):
+    def __init__(self):
+        self.contractor = None
+        super(DATASHEET, self).__init__()
+        self.form = os.path.join(self.base_dir, 'forms', 'DATASHEET FOR CONTRACTOR.xlsx')
+
+    def set_initial_queryset(self):
+        q = Q(contractor=self.contractor)
+        self.qs_resource = Resource.objects.filter(q)
+
+    def get_context(self):
+        df_resource = pd.DataFrame(list(self.qs_resource.values()))
+        df_resource.sort_values(
+            by=['division', 'manager', 'res_job_title'],
+            ascending=[True, True, True],
+            inplace=True)
+        rs_resource = df_resource.to_dict('records')
+
+        context = {
+            'contractor': self.contractor,
+            'rs_resource': rs_resource,  # recordset for individual resource (employee information)
+            'period_string': self.period_string,
+        }
+
+        return context
+
+    def single_set_datasheet(self, context=None):
+
+        wb = load_workbook(self.form)
+
+        # WORK SHEET SBH-FORM 1
+        # ---------------------------------------------------------------------------------------
+        row = 7
+        column = 2
+        sr = 1
+        ws = wb.get_sheet_by_name('STAFF LIST')
+
+        ws.cell('B1').value = "713H CLAIMS FOR {}".format(context['contractor'])
+        ws.cell('B2').value = context['period_string']
+
+        rs_resource = context['rs_resource']
+
+        ws.insert_rows(row, len(rs_resource) - 1)
+
+        for record in rs_resource:
+            ws.cell(row=row, column=column).value = sr
+            ws.cell(row=row, column=column + 1).value = record.get('division', '')
+            ws.cell(row=row, column=column + 2).value = record.get('section', '')
+            ws.cell(row=row, column=column + 3).value = record.get('manager', '')
+            ws.cell(row=row, column=column + 4).value = record.get('id', '')
+            ws.cell(row=row, column=column + 5).value = record.get('po_line_detail_id', '')
+            ws.cell(row=row, column=column + 6).value = record.get('rate', '')
+            ws.cell(row=row, column=column + 7).value = record.get('agency_ref_num', '')
+            ws.cell(row=row, column=column + 8).value = record.get('res_full_name', '').title()
+            ws.cell(row=row, column=column + 9).value = record.get('res_job_title', '')
+            ws.cell(row=row, column=column + 10).value = record.get('grade_level', '')
+            ws.cell(row=row, column=column + 11).value = '{0:%d-%b-%Y}'.format(record.get('date_of_join', ''))
+            ws.cell(row=row, column=column + 12).value = 'Yes' if record.get('has_tool_or_uniform', '') else ""
+            ws.cell(row=row, column=column + 13).value = self.required_hour
+
+            # # Unlock Cells
+            ws.cell(row=row, column=column + 14).protection = Protection(locked=False)
+            ws.cell(row=row, column=column + 15).protection = Protection(locked=False)
+            ws.cell(row=row, column=column + 16).protection = Protection(locked=False)
+
+            sr += 1
+            row += 1
+        # ---------------------------------------------------------------------------------------
+        # END SBH FORM 1
+
+        for sheet in wb.worksheets:
+            sheet.protection.enable()
+            sheet.protection.set_password('tbpc19')
+        wb.save(os.path.join(self.base_dir, 'output', self.output_file))
+
+    def make_datasheet(self, contractor=None, period_start=None, period_end=None,
+                       ramadan_start=None, ramadan_end=None):
+        self.contractor = contractor
+        self.period_start = period_start
+        self.period_end = period_end
+        self.ramadan_start = ramadan_start
+        self.ramadan_end = ramadan_end
+        self.set_variables()
+        self.set_initial_queryset()
+        try:
+            context = self.get_context()
+            self.output_file = get_output_file(
+                'DATASHEET',
+#                '{:0>2}'.format(self.period_start.month),
+                context['contractor'],
+                context['period_string']
+            )
+            self.single_set_datasheet(context)
+        except Exception as e:
+            print('Failed: ', contractor, ' due to missing {}'.format(str(e)))
+
+
+    def make_datasheet_per_contractor(self, contractor=None, period_start=None, period_end=None,
+                                      ramadan_start=None, ramadan_end=None):
+        if contractor.lower() == 'all':
+            contractors = list(Resource.objects.values_list('contractor', flat=True).distinct())
+            for contractor in contractors:
+                self.make_datasheet(contractor, period_start, period_end,
+                                    ramadan_start, ramadan_end)
+        else:
+            self.make_datasheet(contractor, period_start, period_end,
+                                ramadan_start, ramadan_end)
+
+
 if __name__ == '__main__':
+    import timeit, functools
     sbh = SBH()
-    sbh.make_sbh_per_division('1072656-0', 'CSE', '20/05/2016', '19/06/2016', '5/6/2016', '19/06/2016')
-    sbh.make_sbh_per_division('1072658-0', 'CSE', '20/05/2016', '19/06/2016', '5/6/2016', '19/06/2016')
-    sbh.make_sbh_per_division('1072659-0', 'CSE', '20/05/2016', '19/06/2016', '5/6/2016', '19/06/2016')
-    sbh.make_sbh_per_po('1070509-0', '20/05/2016', '19/06/2016', '5/6/2016', '19/06/2016')
-    sbh.make_sbh_per_po('1068851-0', '20/05/2016', '19/06/2016', '5/6/2016', '19/06/2016')
-    # print(get_required_hour(to_date_format('20/05/2016'), to_date_format('19/06/2016'), to_date_format('5/6/2016'), to_date_format('19/06/2016')))
-    # print(get_required_hour(to_date_format('20/05/2016'), to_date_format('19/06/2016')))
+    datasheet = DATASHEET()
+#    t = timeit.Timer(functools.partial(datasheet.make_datasheet_per_contractor, 'all', '20/07/2016', '19/08/2016'))
+    t = timeit.Timer(functools.partial(sbh.make_sbh_per_contractor, 'all', '20/07/2016', '19/08/2016', None, None))
+    print(t.timeit(1))
+    # datasheet = DATASHEET()
+    #datasheet.make_datasheet_per_contractor('all', '20/07/2016', '19/08/2016')
+
+    # sbh = SBH()
+    # sbh.make_sbh_per_division('1072656-0', 'CSE', '20/05/2016', '19/06/2016', '5/6/2016', '19/06/2016')
+    # sbh.make_sbh_per_division('1072658-0', 'CSE', '20/05/2016', '19/06/2016', '5/6/2016', '19/06/2016')
+    # sbh.make_sbh_per_division('1072659-0', 'CSE', '20/05/2016', '19/06/2016', '5/6/2016', '19/06/2016')
+    # sbh.make_sbh_per_po('1070509-0', '20/05/2016', '19/06/2016', '5/6/2016', '19/06/2016')
+    # sbh.make_sbh_per_po('1068851-0', '20/05/2016', '19/06/2016', '5/6/2016', '19/06/2016')
+    # # print(get_required_hour(to_date_format('20/05/2016'), to_date_format('19/06/2016'), to_date_format('5/6/2016'), to_date_format('19/06/2016')))
+    # # print(get_required_hour(to_date_format('20/05/2016'), to_date_format('19/06/2016')))

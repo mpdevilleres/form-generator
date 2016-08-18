@@ -1,7 +1,7 @@
 import click
 from utils import *
 from main.models import PurchaseOrder, Resource
-from sbh_creator import SBH
+from creator import SBH, DATASHEET
 
 
 def get_contractor():
@@ -71,9 +71,11 @@ def get_division(po_num):
 
     return divisions[row_num]
 
+
 @click.command()
 def cli():
     sbh = SBH()
+    datasheet = DATASHEET()
     click.echo("#****************************************#")
     click.echo("#----------------------------------------#")
     click.echo("# Technology Budget Planning and Control #")
@@ -81,16 +83,32 @@ def cli():
     click.echo("#----------------------------------------#")
     click.echo("#****************************************#")
     click.echo("")
+
+    if click.confirm('Do you want to dump files?'):
+        import dump
+        click.echo("DUMPING ....")
+        dump.dump_resources()
+        click.echo("DONE")
+
     while True:
         cycle = get_cycle()
         click.echo("Do you want to generate for,")
-        click.echo("  1. ALL")
-        click.echo("  2. Per PO NUMBER")
-        click.echo("  3. Per CONTRACTOR")
-        click.echo("  4. Per DIVISION")
+        click.echo("  1. SBH for ALL PO NUMBER")
+        click.echo("  2. SBH per PO NUMBER")
+        click.echo("  3. SBH per CONTRACTOR")
+        click.echo("  4. SBH per DIVISION")
+        click.echo("  5. DATASHEET for ALL CONTRACTOR")
+        click.echo("  6. DATASHEET per CONTRACTOR")
+
         generate_category = click.prompt("Enter your choice: ", type=int, default=1)
 
-        if generate_category == 2:
+        if generate_category == 1:
+            contractor = 'all'
+            click.echo("Generating for {} PO".format(contractor))
+            sbh.make_sbh_per_contractor(contractor, cycle[1], cycle[2], cycle[3], cycle[4])
+            click.echo("DONE")
+
+        elif generate_category == 2:
             po_num = click.prompt("Enter your PO NUMBER: ", type=str)
             click.echo("Generating for {}".format(po_num))
             sbh.make_sbh_per_po(po_num, cycle[1], cycle[2], cycle[3], cycle[4])
@@ -109,11 +127,20 @@ def cli():
             sbh.make_sbh_per_division(po_num, division, cycle[1], cycle[2], cycle[3], cycle[4])
             click.echo("DONE")
 
-        else:
+        elif generate_category == 5:
             contractor = 'all'
-            click.echo("Generating for {}".format(contractor))
-            sbh.make_sbh_per_contractor(contractor, cycle[1], cycle[2])
+            click.echo("Generating datasheet for {} contractor".format(contractor))
+            datasheet.make_datasheet_per_contractor(contractor, cycle[1], cycle[2], cycle[3], cycle[4])
             click.echo("DONE")
+
+        elif generate_category == 6:
+            contractor = get_contractor()
+            click.echo("Generating for {}".format(contractor[1]))
+            datasheet.make_datasheet_per_contractor(contractor[1], cycle[1], cycle[2], cycle[3], cycle[4])
+            click.echo("DONE")
+
+        else:
+            pass
 
         click.confirm('Do you want to continue?', abort=True)
 

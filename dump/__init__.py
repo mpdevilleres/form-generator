@@ -210,6 +210,7 @@ def dump_resources(file='RPT01_ Monthly Accruals - Mobillized.csv'):
                 resource.revenue_value = row['REVValue']
                 resource.contractor = row['Contractor']
                 resource.po_os_ref = row['POOSRef']
+                resource.has_tool_or_uniform = to_bool(row['ToolsProvided'])
                 resource.save()
 
 
