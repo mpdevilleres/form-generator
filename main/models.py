@@ -110,6 +110,7 @@ class Resource(models.Model):
     po_os_ref = models.CharField(blank=True, max_length=255)
     has_tool_or_uniform = models.BooleanField(blank=True)
 
+    
 class UnitPrice(models.Model):
     contractor = models.CharField(blank=True, max_length=255)
     po_position = models.CharField(blank=True, max_length=255)

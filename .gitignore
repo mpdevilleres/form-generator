@@ -6,3 +6,4 @@ dist
 *.csv
 *.csv.bak
 *.xlsx
+*.spec
